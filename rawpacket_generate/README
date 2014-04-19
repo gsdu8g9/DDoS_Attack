@@ -1,0 +1,36 @@
+# Raw Packet Generator
+# shoutnk
+# 2014.03.30
+#
+# This is a very simple packet generator.
+# You can enter specific information of packet what you want to capture.
+# Then, the program will send bunch of packets (most of them is dummy, but only few is yours).
+# To run the program, you need root permission.
+#
+#
+# USAGE
+#
+# [-d] option should be entered
+# For [-d] and [-s], you can set partial data, but ':' is needed.
+# For example, if you want to set dst ip only, then
+#   ./generator -d xxx.xxx.xxx:
+#              if you want to set src port only, then
+#   ./generator -s :8080
+#
+# [-t] option is protocol.
+# Here is the list:  ip
+#                    tcp
+#                    udp
+#                    get
+#                    post
+#
+# Only lowercase is accepted.
+#
+# [-n] option is limits the number of packets will be sent.
+# If you don't enter this option, only one packet is sent which has entered information.
+#
+# [-f] option means infinite packet generating.
+#
+# If you want to stop during loop, just interrup the program (ctrl+c)
+# then it will notice how many packets which have entered information are sent.
+# Just compare with your IDS :)
