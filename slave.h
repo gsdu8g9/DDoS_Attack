@@ -27,7 +27,7 @@ struct SlaveTable {
 	struct SlaveTable *next;
 };
 
-bool slave_create(struct Flow flow);
+bool slave_create(struct Flow *flow);
 bool slave_delete(struct Flow flow);
 void slave_deleteall();
 

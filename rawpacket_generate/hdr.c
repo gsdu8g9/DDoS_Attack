@@ -13,28 +13,7 @@
 #include "hdr.h"
 #include "checksum.h"
 
-bool ether_create(struct ether_header *eth, int rawsockfd)
-{
-	struct ifreq ifmac;
-	int i;
-	
-	memset(&ifmac, 0, sizeof(struct ifreq));
-	strncpy(ifmac.ifr_name, "eth0", IFNAMSIZ-1);
-
-	if( ioctl(rawsockfd, SIOCGIFHWADDR, &ifmac) < 0 ) {
-		perror("Fail to set Mac address: ");
-		return false;
-	}
-
-	for(i = 0; i < 6; i++)
-		eth->ether_dhost[i] = *(uint8_t *)&ifmac.ifr_hwaddr.sa_data[i];
-
-	eth->ether_type = htons(ETHERTYPE_IP);
-
-	return true;
-}
-
-bool iphdr_create(struct ip *iphdr, struct in_addr dip, TYPE type, int payloadlen)
+bool iphdr_create(struct ip *iphdr)
 {
 	iphdr->ip_id = rand();
 	iphdr->ip_src = rand();

@@ -20,90 +20,65 @@
 
 void rawprint(const uint8_t * const packet, int packetlen);
 
-bool packet_send(uint8_t *packet)
+bool packet_send(uint8_t *packet, TYPE type)
 {
 	int sockfd, done = 0;
 	int packetlen = 0, payloadlen = 0;
 
 	char *payload;
 	struct ip *iphdr;
-	struct ifreq ifr;
-	struct sockaddr_ll sll;
-
+	struct sockaddr_in din;
+	int one = 1;
+	const int *val = &one;
 
 	/* PACKET */
-	if( (sockfd = socket(PF_PACKET, SOCK_RAW, IPPROTO_RAW)) < 0 ) {
+	if( (sockfd = socket(PF_INET, SOCK_RAW, IPPROTO_RAW)) < 0 ) {
 		perror("socket(): ");
 		return false;
 	}
 
+	// Address family
+	din.sin_family      = AF_INET;
+	din.sin_addr.s_addr = iphdr->ip_dst.s_addr;
+	din.sin_port        = tcphdr->dest;
+
+	if (setsockopt(sd, IPPROTO_IP, IP_HDRINCL, val, sizeof(one)) < 0) {
+		perror("setsockopt() error");
+		exit(-1);
+	}
+
 	//random payload
 
-	/* ETHER HEADER */
-	if( ether_create((struct ether_header *)packet, sockfd) == false ) {
-		printf("ether_create(): Failure\n");
-		FREE_RET;
-	}
-	packetlen += sizeof(struct ether_header);  // 14 bytes
-
-
 	/* IP HEADER */
-	iphdr = (struct ip *)(packet + packetlen);
-	if( iphdr_create(iphdr, flow->ip, flow->type, payloadlen) == false ) {
-		printf("iphdr_create(): Failure\n");
-		FREE_RET;
-	}
+	iphdr = (struct ip *)packet;
 	packetlen += sizeof(struct ip);  // 20 bytes
 
 
-	if( flow->type == UDP ) {
+	if( type == UDP ) {
 		/* UDP HEADER */
-		if( udphdr_create((struct udphdr *)(packet + packetlen), flow->port, payload, payloadlen, iphdr) == false ) {
-			printf("udphdr_create(): Failure\n");
-			FREE_RET;
-		}
 		packetlen += sizeof(struct udphdr);  // 8 bytes
-
 
 	}else {
 		/* TCP HEADER */
-		if( tcphdr_create((struct tcphdr *)(packet + packetlen), flow->port, flow->type, payload, payloadlen, iphdr) == false ) {
-			printf("tcphdr_create(): Failrue\n");
-			FREE_RET;
-		}
 		packetlen += sizeof(struct tcphdr);  // 20 bytes
 	}
-
 
 	/* PAYLOAD */
 	memcpy(packet + packetlen, payload, payloadlen);
 	packetlen += payloadlen;
 
-
 	/* SEND PACKET */
-	memset(&ifr, 0, sizeof(struct ifreq));
-	strncpy(ifr.ifr_name, "eth0", IFNAMSIZ-1);
+	while( 1 ) {
 
-	if( ioctl(sockfd, SIOCGIFINDEX, &ifr) < 0 ) {
-		perror("ioctl(): ");
-		FREE_RET;
+		int x = sendto(sockfd, packet, sizeof(struct ip) + sizeof(struct tcphdr) + payloadlen, 0, (struct sockaddr *)&din, sizeof(din));
+		if( x < 0 ) {
+			perror("sendto() error");
+			exit(-1);
+		}
+		//rawprint(packet, packetlen);
 	}
-
-	sll.sll_family = AF_PACKET;
-	sll.sll_ifindex = ifr.ifr_ifindex;
-
-	if( bind(sockfd, (struct sockaddr *)&sll, sizeof(sll)) < 0 ) {
-		perror("bind(): ");
-		FREE_RET;
-	}
-
-	//rawprint(packet, packetlen);
-
-	if( (done = write(sockfd, packet, packetlen)) != packetlen )
-		printf("Miss %d bytes\n", packetlen - done);
 
 	close(sockfd);
-	free(packet);
 
 	return true;
 }

@@ -3,6 +3,7 @@
 #include <stdlib.h>	   // exit(), EXIT_FAILURE
 #include <arpa/inet.h>	   // inet_aton(), inet_ntoa()
 #include <netinet/in.h>	   // struct in_addr
+#include <arpa/inet.h>
 
 #include "slave.h"
 
@@ -11,8 +12,9 @@ int main()
 	struct Flow flow;
 	char buf[500];
 	char *token, *cmd;
-	int ch, i;
+	int i;
 
+	printf("Hi\n");
 	while( 1 ) {
 		fgets(buf, 500, stdin);
 
@@ -55,10 +57,14 @@ int main()
 
 		/* Command */
 		if( strncmp(cmd, "start", 5) == 0 ) {
-			slave_create(flow);
+			printf("START: ");
+			slave_create(&flow);
+			printf("OK\n");
 
 		}else if( strncmp(cmd, "stop", 4) == 0 ) {
-			slave_exit(flow);
+			printf("STOP: ");
+			slave_delete(flow);
+			printf("OK\n");
 
 		}else if( strncmp(cmd, "finish", 6) == 0 ) {
 			// stop all remain
