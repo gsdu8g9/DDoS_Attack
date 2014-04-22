@@ -14,7 +14,6 @@ int main()
 	char buf[50];
 	int i;
 
-	printf("Hi\n");
 	while( 1 ) {
 		fgets(buf, 50, stdin);
 
@@ -58,13 +57,17 @@ int main()
 		//printf("%s %d %d %d\n", inet_ntoa(flow.ip), flow.port, flow.times, flow.type);
 		/* Command */
 		if( strncmp(cmd, "start", 5) == 0 ) {
-			slave_create(&flow);
+			if( slave_create(&flow) == false) {
+				printf("slave_create(): Failure\n");
+			}
 
 		}else if( strncmp(cmd, "stop", 4) == 0 ) {
-			slave_delete(&flow);
+			if( slave_delete(&flow) == false ) {
+				printf("slave_delete(): Failure\n");
+			}
 
 		}else if( strncmp(cmd, "finish", 6) == 0 ) {
-			// stop all remain
+			slave_deleteall();
 			exit(EXIT_SUCCESS);
 
 		}else {
