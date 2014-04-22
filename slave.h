@@ -12,8 +12,6 @@ typedef enum {SYN, FIN, UDP} TYPE;
 #define false 0
 #define true 1
 
-#define PAYLOADLEN 1500
-
 struct Flow {
 	struct in_addr ip;
 	uint16_t port;
@@ -27,8 +25,8 @@ struct SlaveTable {
 	struct SlaveTable *next;
 };
 
-bool slave_create(struct Flow flow);
-bool slave_delete(struct Flow flow);
+bool slave_create(const struct Flow * const flow);
+bool slave_delete(struct Flow *flow);
 void slave_deleteall();
 
 #endif
