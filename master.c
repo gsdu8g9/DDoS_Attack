@@ -10,13 +10,13 @@
 int main()
 {
 	struct Flow flow;
-	char buf[500];
 	char *token, *cmd;
+	char buf[50];
 	int i;
 
 	printf("Hi\n");
 	while( 1 ) {
-		fgets(buf, 500, stdin);
+		fgets(buf, 50, stdin);
 
 		cmd = strtok(buf, " ");
 
@@ -55,16 +55,13 @@ int main()
 		/* Number of packets */
 		flow.times = atoi(strtok(NULL, " "));
 
+		//printf("%s %d %d %d\n", inet_ntoa(flow.ip), flow.port, flow.times, flow.type);
 		/* Command */
 		if( strncmp(cmd, "start", 5) == 0 ) {
-			printf("START: ");
 			slave_create(&flow);
-			printf("OK\n");
 
 		}else if( strncmp(cmd, "stop", 4) == 0 ) {
-			printf("STOP: ");
-			slave_delete(flow);
-			printf("OK\n");
+			slave_delete(&flow);
 
 		}else if( strncmp(cmd, "finish", 6) == 0 ) {
 			// stop all remain
