@@ -4,6 +4,7 @@
 #include <netinet/udp.h>	// struct udphdr
 #include <string.h>		// memcpy()
 
+//#include "raw_packet.h"
 uint16_t checksum(uint16_t *ptr, int len)
 {
 	uint16_t *tmp = ptr;
