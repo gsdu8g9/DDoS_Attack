@@ -1,0 +1,46 @@
+/* Ethernet Header */
+Destination MAC	: 
+Source MAC	: 4C:ED:DE:DC:62:9D
+Ethernet Type	: IP
+
+
+/* IP Header */
+Version		: 4
+Header Length	: 5
+Type of Service	: //ECN Congestion
+Total Length	: 65535
+Identification	: A4E2
+Fragment	: //DF MF 0
+Time to Live	: 64
+Protocol	: TCP
+Checksum	: EBDB
+Source IP	: 0.0.0.0
+Destination IP	: 0.0.0.0
+
+
+/* TCP Header */
+Source Port	: 60
+Destination Port: 80
+Seq Number	: 0
+Ack Number	: 0
+Offset		: 0
+Reserved	: 0
+Flag		: //NS CWR ECE URG ACK PSH RSI SYN FIN
+Window Size	: 65535
+Checksum	: FFFF
+Urgent Pointer	: 0
+
+
+/* UDP Header */
+Source Port	: 
+Destination Port: 
+Length		: 
+Checksum	: 
+
+
+/* HTTP Protocol */
+Request		: //GET POST PUT
+
+
+/* Payload */
+KAIST

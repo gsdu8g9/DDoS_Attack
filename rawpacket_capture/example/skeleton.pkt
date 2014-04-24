@@ -1,0 +1,45 @@
+/* Ethernet Header */
+Destination MAC	: 
+Source MAC	: 
+Ethernet Type	: 
+
+
+/* IP Header */
+Version		: 
+Header Length	: 
+Type of Service	: 
+Total Length	: 
+Identification	: 
+Fragment	: 
+Time to Live	: 
+Protocol	: 
+Checksum	: 
+Source IP	: 
+Destination IP	: 
+
+
+/* TCP Header */
+Source Port	: 
+Destination Port: 
+Seq Number	: 
+Ack Number	: 
+Offset		: 
+Reserved	: 
+Flag		: 
+Window Size	: 
+Checksum	: 
+Urgent Pointer	: 
+
+
+/* UDP Header */
+Source Port	: 
+Destination Port: 
+Length		: 
+Checksum	: 
+
+
+/* HTTP Protocol */
+Request		: 
+
+
+/* Payload */

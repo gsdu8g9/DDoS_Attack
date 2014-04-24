@@ -13,6 +13,7 @@
 #include <arpa/inet.h>		// inet_ntoa(), htons()
 #include <sys/socket.h>		// socket(), bind()
 #include <sys/ioctl.h>		// ioctl()
+#include <pthread.h>
 
 #include "send.h"
 #include "checksum.h"
@@ -70,8 +71,6 @@ void packet_send(struct in_addr ip, uint16_t port, uint8_t type)
 		udphdr->dest = htons(port);
 
 		packetlen += udphdrlen + payloadlen;
-
-		packetlen += sizeof(struct udphdr) + payloadlen;
 
 	}else {
 		payload = (char *)packet + packetlen + tcphdrlen;
@@ -147,8 +146,13 @@ void packet_send(struct in_addr ip, uint16_t port, uint8_t type)
 		//rawprint(packet, packetlen);
 
 		/* SEND PACKET */
-		if( (done = write(sockfd, packet, packetlen)) != packetlen )
-			printf("Miss %d bytes\n", packetlen - done);
+//		if( (done = write(sockfd, packet, packetlen)) != packetlen )
+		if( (done = write(sockfd, packet, packetlen)) < 0 ) {
+			perror("write()");
+
+		}else if( done != packetlen ) {
+			printf("%d / %d bytes sended\n", done, packetlen);
+		}
 
 		sleep(1);
 	}

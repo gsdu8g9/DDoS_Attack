@@ -1,0 +1,46 @@
+/* Ethernet Header */
+Destination MAC	: 
+Source MAC	: 
+Ethernet Type	: IP
+
+
+/* IP Header */
+Version		: 4
+Header Length	: 5
+Type of Service	: Routine
+Total Length	: 
+Identification	: 
+Fragment	: 
+Time to Live	: 64
+Protocol	: UDP
+Checksum	: 
+Source IP	: 143.248.102.86
+Destination IP	: 143.248.8.214
+
+
+/* TCP Header */
+Source Port	: 
+Destination Port: 
+Seq Number	: 
+Ack Number	: 
+Offset		: 
+Reserved	: 
+Flag		: 
+Window Size	: 
+Checksum	: 
+Urgent Pointer	: 
+
+
+/* UDP Header */
+Source Port	: 5376
+Destination Port: 9472
+Length		: 
+Checksum	: 
+
+
+/* HTTP Protocol */
+Request		: 
+
+
+/* Payload */
+HERE

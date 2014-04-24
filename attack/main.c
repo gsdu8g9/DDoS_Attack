@@ -80,7 +80,7 @@ int main()
 	thread_init(botfd);
 
 	while( 1 ) {
-		printf(">> ");
+		printf("\n>> ");
 		fgets(buf, 50, stdin);
 
 		cmd = strtok(buf, " ");
@@ -120,7 +120,7 @@ int main()
 		/* Number of packets */
 		times = atoi(strtok(NULL, " "));
 
-		printf("%s %d %d %x\n", inet_ntoa(flow.ip), flow.port, times, flow.type);
+		//printf("%s %d %d %x\n", inet_ntoa(flow.ip), flow.port, times, flow.type);
 		/* Command */
 		if( strncmp(cmd, "start", 5) == 0 ) {
 			printf("[*] %d / %d slaves are started\n", thread_regist(flow, times), times);
@@ -139,6 +139,8 @@ int main()
 			printf("Wrong Command: %s\n", cmd);
 			printf("Ignore Current Commands\n");
 		}
+
+		//thread_info();
 	}
 }
 

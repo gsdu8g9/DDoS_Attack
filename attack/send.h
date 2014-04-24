@@ -6,7 +6,7 @@
 #define SYN 1
 #define FIN 2
 #define UDP 4
-#define UDP_PAYLOAD 1000
+#define UDP_PAYLOAD 1472
 
 void packet_send(struct in_addr ip, uint16_t port, uint8_t type);
 
